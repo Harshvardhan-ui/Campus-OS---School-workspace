@@ -1,0 +1,100 @@
+CAMPUS OS — HOW TO RUN
+=====================
+
+IMPORTANT
+This copy is not connected to a school database and is not deployed. Local demo sign-ins let you preview the three role interfaces, but they are temporary, read-only, and never save records. Real sign-in and shared data require the Supabase setup below. Do not enter real student information before the school has configured and checked its database.
+
+A. OPEN A LOCAL PREVIEW (Windows)
+---------------------------------
+1. Open PowerShell.
+2. Change to the Campus OS folder. If you are in the project workspace, run:
+
+   cd "C:\Users\HP\Documents\Codex\2026-10-19\co\outputs\campus-os"
+
+3. Start a local web server:
+
+   py -m http.server 8000
+
+   If the 'py' command is not found, install Python 3 or use another static web server.
+4. Open this address in your browser:
+
+   http://localhost:8000
+
+5. The public school site is at:
+
+   http://localhost:8000/public.html
+
+6. Leave PowerShell open while using the preview. Press Ctrl+C in that window to stop the server.
+
+Local preview demo accounts
+  Owner:        owner.demo@campus.test / CampusDemo-Owner-2026!
+  School office: office.demo@campus.test / CampusDemo-Office-2026!
+  Student:      student.demo@campus.test / CampusDemo-Student-2026!
+
+You can click “Open … demo” on the sign-in page to enter a role without typing. These accounts exist only in the local preview on localhost or 127.0.0.1. They are not Supabase users, do not create student records, and cannot save edits. On a deployed site, invite real accounts through Users & access.
+
+Do not open index.html by double-clicking it. The app needs an HTTP server for its scripts and service worker. An internet connection is also needed to load the Supabase browser library.
+
+B. CONNECT A SHARED SCHOOL DATABASE
+-----------------------------------
+You need a Supabase project owned by the school. This is required for account sign-in and for records to remain available after refresh or on another device.
+
+1. Create a Supabase project and enable email/password sign-in. In Authentication > URL Configuration, set the production Site URL and add redirect URLs for your preview and production sites. For example: http://localhost:8000/**, http://127.0.0.1:5500/**, and https://YOUR-SCHOOL-DOMAIN/**. Add the exact origin and path used by your site; invitation redirects outside this allow-list will not return to the app.
+2. In the Supabase Dashboard, open SQL Editor and run this file once:
+
+   supabase/migrations/202610190001_campus_schema.sql
+
+3. In Authentication > Users, create the first Owner account. Then run this query in SQL Editor, replacing the email and name:
+
+   update public.profiles p
+   set role = 'owner', display_name = 'School Owner'
+   from auth.users u
+   where p.id = u.id and lower(u.email) = lower('owner@your-school.example');
+
+4. Install the Supabase CLI using its official installation instructions, open PowerShell in this Campus OS folder, and run:
+
+   supabase login
+   supabase link --project-ref YOUR_PROJECT_REF
+   supabase secrets set CAMPUS_ALLOWED_ORIGIN=https://YOUR-SCHOOL-DOMAIN,http://localhost:8000,http://127.0.0.1:5500 ADMISSION_RATE_SALT=USE_A_LONG_RANDOM_SECRET
+   supabase functions deploy submit-admission
+   supabase functions deploy invite-campus-user
+
+   CAMPUS_ALLOWED_ORIGIN is a comma-separated list of exact origins. Keep the local address you use while testing and the HTTPS production address. Remove local origins before launch if they are no longer needed.
+
+5. Open campus-config.js and add the project's URL and publishable key from Supabase Project Settings > API:
+
+   window.CAMPUS_CONFIG = {
+     supabaseUrl: "https://YOUR_PROJECT_REF.supabase.co",
+     publishableKey: "YOUR_PUBLISHABLE_KEY"
+   };
+
+   The publishable key is intended for browser use. NEVER put the service-role key, database password, or SMTP credentials in this file.
+
+6. Reload http://localhost:8000/index.html, open “Connect the shared school database” if needed, and sign in with the Owner email and password. Choose the Owner workspace.
+7. Add school details, academic year, classes, sections and fee plans. In Users & access, the Owner invites office users and students. A new office user opens the secure invitation email, creates a password, then returns to the sign-in page and selects School office. There is no public self-registration. Add a student record before inviting that student; students also create their password from the invitation link.
+8. Test with non-sensitive sample records first. Confirm a saved record remains after refresh and appears on a second device signed into the same deployment.
+
+IF “FAILED TO SEND A REQUEST TO EDGE FUNCTION” APPEARS
+------------------------------------------------------
+1. Make sure the invitation function has been deployed to the same Supabase project used by campus-config.js:
+
+   supabase functions deploy invite-campus-user
+
+2. Set CAMPUS_ALLOWED_ORIGIN to include the exact origin shown in your browser address bar. Examples: http://localhost:8000, http://127.0.0.1:5500, or https://your-school-domain.example. If testing locally and in production, list both origins separated by commas, then redeploy the function.
+3. In Supabase Authentication > URL Configuration, allow the invitation redirect URL too. For example, add https://your-school-domain.example/** so the email invitation can return to index.html.
+4. Confirm you signed into the app as the Owner and check Supabase Dashboard > Edge Functions > invite-campus-user > Logs for server errors.
+5. If the function returns an authorization, SMTP, or other HTTP error, read the message shown in the app and check the same function log entry. The invitation requires a valid authenticated Owner and working email delivery.
+
+During local preview, the connection form stores connection settings only in the current browser. For a deployed site to connect automatically on all devices, put the same public project URL and publishable key in campus-config.js and deploy the whole folder to the school-owned HTTPS host.
+
+C. PRODUCTION DEPLOYMENT CHECKLIST
+----------------------------------
+- Deploy the complete Campus OS folder to a school-owned HTTPS hosting account. Keep index.html at the app root and make public.html reachable for public school information and admissions.
+- Configure campus-config.js with the school's Supabase URL and publishable key before deployment.
+- Set CAMPUS_ALLOWED_ORIGIN to the exact production website origin, configure school-controlled SMTP, and deploy both Supabase functions.
+- Confirm the first Owner account works. Invite office and student accounts; do not share one password among users.
+- Verify access boundaries: office users cannot change fee status; only the Owner can approve payment requests and mark fees Paid.
+- Check public enquiry submission, student records, attendance, fees, invoices, password recovery, backups and restore using test data.
+- Arrange a security and child-privacy review and a backup/restore rehearsal before entering real records.
+
+The app uses Supabase as the shared source of truth. A browser-only copy cannot synchronize records between devices. No school database, hosting account, credentials, or live deployment is included with these files.

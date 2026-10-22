@@ -1,0 +1,8 @@
+# The functions validate their own authorization. The invitation function verifies the
+# bearer token and Owner role in its handler; the public admissions function deliberately
+# permits unauthenticated enquiries and validates/rate-limits them server-side.
+[functions.invite-campus-user]
+verify_jwt = false
+
+[functions.submit-admission]
+verify_jwt = false
